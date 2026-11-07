@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balloon Pop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
+<style>
+/* One screen: open sky where balloons rise from behind a grassy hill that holds the keyboard. */
+:root {
+  --sky-top: #5fb8f0;
+  --sky-low: #c9ecff;
+  --ink: #233061;
+  --grass: #7ccf5e;
+  --key: #fffdf6;
+  --key-edge: #d3cdb8;
+  --gold: #ffbf1f;
+  --gold-dark: #d99500;
+  --font: "Fredoka", "Arial Rounded MT Bold", "Nunito", system-ui, sans-serif;
+  --k: min(7.9vw, 7.4vh, 66px);
+  --gap: calc(var(--k) * .14);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-low) 100%);
+  color: var(--ink);
+  font-family: var(--font);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font-family: inherit; color: inherit; }
+button:focus-visible { outline: 4px solid #fff; outline-offset: 3px; }
+#app { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+/* Sky */
+#sky { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.cloud {
+  position: absolute; left: 0; width: 170px; height: 54px;
+  background: #fff; border-radius: 40px; opacity: .9;
+  animation: drift linear infinite;
+}
+.cloud::before, .cloud::after { content: ""; position: absolute; background: #fff; border-radius: 50%; }
+.cloud::before { width: 76px; height: 76px; left: 26px; top: -36px; }
+.cloud::after { width: 58px; height: 58px; left: 88px; top: -24px; }
+.c1 { top: 16%; animation-duration: 95s; animation-delay: -20s; }
+.c2 { top: 38%; scale: .7; animation-duration: 120s; animation-delay: -70s; opacity: .75; }
+.c3 { top: 7%; scale: .85; animation-duration: 140s; animation-delay: -110s; opacity: .8; }
+@keyframes drift { from { translate: -220px 0; } to { translate: calc(100vw + 40px) 0; } }
+
+/* Top bar */
+.hud {
+  position: absolute; z-index: 5;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: max(16px, env(safe-area-inset-left, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; justify-content: space-between; align-items: flex-start;
+  pointer-events: none;
+}
+.hud > * { pointer-events: auto; }
+.stars {
+  display: flex; align-items: center; gap: .3em;
+  padding: .12em .65em .12em .45em; border-radius: 999px;
+  background: rgba(255, 255, 255, .88);
+  font-size: clamp(24px, 4.5vmin, 40px); font-weight: 700;
+  box-shadow: 0 4px 0 rgba(35, 48, 97, .12);
+}
+.stars .icon { color: var(--gold); text-shadow: 0 2px 0 var(--gold-dark); font-size: 1.15em; line-height: 1; }
+.stars.bump { animation: bump .45s ease; }
+@keyframes bump { 40% { transform: scale(1.25); } }
+#starCount { font-variant-numeric: tabular-nums; min-width: 1ch; }
+.tools { display: flex; gap: 10px; }
+.tool {
+  width: 48px; height: 48px; border-radius: 50%; border: 0;
+  background: rgba(255, 255, 255, .7); display: grid; place-items: center;
+  cursor: pointer; box-shadow: 0 3px 0 rgba(35, 48, 97, .12);
+}
+.tool svg { width: 26px; height: 26px; }
+.tool .off { display: none; }
+.tool[aria-pressed="true"] .on { display: none; }
+.tool[aria-pressed="true"] .off { display: block; }
+
+/* Balloon */
+#balloons { position: absolute; inset: 0; }
+.balloon { position: absolute; left: 0; top: 0; will-change: transform; transform-origin: 50% 78%; cursor: pointer; }
+.balloon svg { display: block; width: 100%; height: auto; overflow: visible; }
+.wiggle { transform-origin: 50% 78%; }
+.wiggle.shake { animation: shake .5s ease; }
+@keyframes shake {
+  20% { transform: rotate(-9deg); }
+  40% { transform: rotate(8deg); }
+  60% { transform: rotate(-5deg); }
+  80% { transform: rotate(3deg); }
+}
+.b-body { fill: var(--c); }
+.b-shade { fill: var(--d); opacity: .2; }
+.b-knot { fill: var(--d); }
+.b-shine { fill: #fff; opacity: .5; }
+.b-string { fill: none; stroke: #4d5c80; stroke-opacity: .55; stroke-width: 2.5; stroke-linecap: round; }
+.b-letter {
+  font-family: var(--font); font-weight: 700; font-size: 128px;
+  fill: #fff; stroke: var(--d); stroke-width: 12; stroke-linejoin: round; paint-order: stroke;
+}
+
+/* Picture after a pop */
+.reveal {
+  position: absolute; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: .1em;
+  transform: translate(-50%, -50%); pointer-events: none; text-align: center;
+}
+.reveal .emoji { font-size: clamp(84px, 22vmin, 210px); line-height: 1.05; }
+.reveal .word {
+  font-size: clamp(34px, 7.5vmin, 76px); font-weight: 600; line-height: 1.2;
+  background: rgba(255, 255, 255, .85); padding: .02em .55em .08em; border-radius: .6em;
+  letter-spacing: .02em; white-space: nowrap;
+}
+.reveal .word b { font-weight: 700; }
+.reveal.in { animation: revealIn .6s cubic-bezier(.3, 1.6, .5, 1) both; }
+.reveal.out { animation: revealOut .35s ease forwards; }
+@keyframes revealIn {
+  from { transform: translate(-50%, -50%) scale(.2); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@keyframes revealOut { to { transform: translate(-50%, -70%) scale(.8); opacity: 0; } }
+
+/* Party every 10 stars */
+.party { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none; }
+.party-card { display: flex; flex-direction: column; align-items: center; gap: .2em; animation: popIn .7s cubic-bezier(.3, 1.6, .5, 1) both; }
+.party .big-star {
+  font-size: clamp(120px, 30vmin, 280px); line-height: 1;
+  color: var(--gold); text-shadow: 0 8px 0 var(--gold-dark);
+  animation: spin 1.4s cubic-bezier(.3, 1.4, .5, 1) both;
+}
+.party h2 {
+  margin: 0; font-size: clamp(40px, 9vmin, 96px); font-weight: 700; line-height: 1.15;
+  background: rgba(255, 255, 255, .9); padding: .02em .6em .1em; border-radius: .6em;
+}
+@keyframes popIn { from { transform: scale(.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes spin { from { transform: rotate(-200deg) scale(.4); } to { transform: rotate(0) scale(1); } }
+
+/* Keyboard on the hill */
+#keyboard {
+  position: relative; z-index: 4; flex: none; background: var(--grass);
+  padding-block: calc(var(--k) * .12) calc(14px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+#keyboard::before {
+  content: ""; position: absolute; z-index: -1;
+  left: -15%; right: -15%; top: calc(var(--k) * -.6); height: calc(var(--k) * 1.4);
+  background: var(--grass); border-radius: 50%;
+}
+.kb { margin: 0 auto; width: calc(var(--k) * 10 + var(--gap) * 9); display: flex; flex-direction: column; gap: var(--gap); }
+.row { display: flex; gap: var(--gap); }
+.row:nth-child(2) { margin-left: calc((var(--k) + var(--gap)) * .3); }
+.row:nth-child(3) { margin-left: calc((var(--k) + var(--gap)) * .8); }
+.key {
+  width: var(--k); height: var(--k); border: 0; padding: 0;
+  border-radius: calc(var(--k) * .22);
+  background: var(--key); box-shadow: 0 calc(var(--k) * .07) 0 var(--key-edge);
+  font-size: calc(var(--k) * .5); font-weight: 600; color: var(--ink);
+  cursor: pointer; display: grid; place-items: center;
+  transition: background-color .2s, color .2s;
+}
+.key .cap { display: block; line-height: 1; }
+.key.pressed .cap { animation: press .18s ease; }
+@keyframes press { 50% { transform: translateY(3px) scale(.88); } }
+.key.target {
+  position: relative; z-index: 1;
+  background: var(--c); color: #fff;
+  box-shadow: 0 calc(var(--k) * .07) 0 var(--d), 0 0 0 4px #fff;
+  animation: pulse 1.1s ease-in-out infinite;
+}
+.key.target .cap { text-shadow: 0 2px 0 var(--d); }
+.key.target.hint { animation: hop .5s ease 3; }
+@keyframes pulse { 50% { transform: scale(1.12); } }
+@keyframes hop {
+  0%, 100% { transform: translateY(0) scale(1.1); }
+  50% { transform: translateY(calc(var(--k) * -.45)) scale(1.25); }
+}
+
+/* Start screen */
+.start {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  padding-block: 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: linear-gradient(180deg, rgba(95, 184, 240, .93), rgba(201, 236, 255, .96));
+  text-align: center; transition: opacity .4s;
+}
+.start.leaving { opacity: 0; }
+.start-inner { display: flex; flex-direction: column; align-items: center; gap: clamp(16px, 3vh, 28px); }
+.title {
+  margin: 0; font-size: clamp(56px, 13vmin, 140px); font-weight: 700; line-height: 1;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .28em;
+}
+.title .w { display: flex; }
+.title .l { display: inline-block; color: var(--c); text-shadow: 0 .06em 0 var(--d); animation: float 2.6s ease-in-out infinite; }
+@keyframes float { 50% { transform: translateY(-.1em); } }
+.lead { margin: 0; font-size: clamp(20px, 3.6vmin, 32px); font-weight: 500; max-width: 22em; text-wrap: balance; }
+.play {
+  font-size: clamp(30px, 6vmin, 52px); font-weight: 700;
+  padding: .26em 1.4em .34em; border: 0; border-radius: 999px;
+  background: #ff5a5f; color: #fff; box-shadow: 0 .14em 0 #b8283a; cursor: pointer;
+}
+.play:active { transform: translateY(.08em); box-shadow: 0 .06em 0 #b8283a; }
+.note { margin: 0; font-size: 15px; opacity: .75; }
+
+.fly-star {
+  position: fixed; left: 0; top: 0; z-index: 15;
+  font-size: 56px; line-height: 1; color: var(--gold); text-shadow: 0 3px 0 var(--gold-dark);
+  pointer-events: none;
+}
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud, .title .l, .key.target { animation: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="sky">
+    <div class="cloud c1"></div>
+    <div class="cloud c2"></div>
+    <div class="cloud c3"></div>
+    <div class="hud">
+      <div class="stars" id="stars" aria-live="polite"><span class="icon" id="starIcon">★</span><span id="starCount">0</span></div>
+      <div class="tools">
+        <button class="tool" id="soundBtn" type="button" aria-label="Mute" aria-pressed="false" tabindex="-1">
+          <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="m16 9 6 6M22 9l-6 6"/></svg>
+        </button>
+        <button class="tool" id="fsBtn" type="button" aria-label="Full screen" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="balloons"></div>
+    <div class="reveal" id="reveal" hidden><div class="emoji"></div><div class="word"></div></div>
+    <div class="party" id="party" hidden>
+      <div class="party-card"><div class="big-star">★</div><h2><span id="partyNum">10</span> stars!</h2></div>
+    </div>
+  </main>
+  <section id="keyboard" aria-label="Keyboard"><div class="kb" id="kb"></div></section>
+</div>
+<canvas id="confetti"></canvas>
+<div class="start" id="start">
+  <div class="start-inner">
+    <h1 class="title" id="title" aria-label="Balloon Pop"></h1>
+    <p class="lead">Press the letter on the balloon to pop it!</p>
+    <button class="play" id="playBtn" type="button">Play</button>
+    <p class="note">Turn the sound on. Press Esc to leave full screen.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const LETTERS = {
+    A: { word: 'apple', emoji: '🍎' },
+    B: { word: 'bear', emoji: '🐻' },
+    C: { word: 'cat', emoji: '🐱' },
+    D: { word: 'dog', emoji: '🐶' },
+    E: { word: 'elephant', emoji: '🐘' },
+    F: { word: 'fish', emoji: '🐠' },
+    G: { word: 'grapes', emoji: '🍇' },
+    H: { word: 'horse', emoji: '🐴' },
+    I: { word: 'ice cream', emoji: '🍦' },
+    J: { word: 'juice', emoji: '🧃' },
+    K: { word: 'key', emoji: '🔑' },
+    L: { word: 'lion', emoji: '🦁' },
+    M: { word: 'monkey', emoji: '🐵' },
+    N: { word: 'nose', emoji: '👃' },
+    O: { word: 'octopus', emoji: '🐙' },
+    P: { word: 'pig', emoji: '🐷' },
+    Q: { word: 'queen', emoji: '👸' },
+    R: { word: 'rabbit', emoji: '🐰' },
+    S: { word: 'sun', emoji: '🌞' },
+    T: { word: 'tiger', emoji: '🐯' },
+    U: { word: 'umbrella', emoji: '☔' },
+    V: { word: 'volcano', emoji: '🌋' },
+    W: { word: 'whale', emoji: '🐳' },
+    X: { word: 'fox', emoji: '🦊', say: 'X! Fox ends with X.' },
+    Y: { word: 'yo-yo', emoji: '🪀' },
+    Z: { word: 'zebra', emoji: '🦓' },
+  };
+  const COLORS = [
+    { c: '#ff5a5f', d: '#b8283a' },
+    { c: '#ff9f1c', d: '#b86a00' },
+    { c: '#ffd23f', d: '#a88200' },
+    { c: '#3ecf8e', d: '#1c8a58' },
+    { c: '#3a86ff', d: '#1d52b0' },
+    { c: '#9b5de5', d: '#6430a8' },
+    { c: '#ff70a6', d: '#bf3b6e' },
+  ];
+  const ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+  const RISE_MS = 2600;
+  // A lone "A" is often read as "uh", so spell its name out.
+  const nameOf = (l) => (l === 'A' ? 'Ay' : l);
+
+  const $ = (id) => document.getElementById(id);
+  const sky = $('sky'), balloonLayer = $('balloons'), reveal = $('reveal'), partyEl = $('party');
+  const starsPill = $('stars'), starIcon = $('starIcon'), starCount = $('starCount');
+  const startEl = $('start'), soundBtn = $('soundBtn'), fsBtn = $('fsBtn');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let state = 'start'; // start | waiting | busy
+  let current = null;
+  let stars = 0;
+  let bag = [];
+  let lastLetter = null;
+  let colorIdx = Math.floor(Math.random() * COLORS.length);
+  let nameTimer = 0;
+  let skyW = sky.clientWidth, skyH = sky.clientHeight;
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  // ---------- Title ----------
+  (() => {
+    const title = $('title');
+    let i = 0;
+    for (const word of ['Balloon', 'Pop']) {
+      const w = document.createElement('span');
+      w.className = 'w';
+      w.setAttribute('aria-hidden', 'true');
+      for (const ch of word) {
+        const s = document.createElement('span');
+        const col = COLORS[i % COLORS.length];
+        s.className = 'l';
+        s.textContent = ch;
+        s.style.setProperty('--c', col.c);
+        s.style.setProperty('--d', col.d);
+        s.style.animationDelay = `${-i * 0.22}s`;
+        w.appendChild(s);
+        i++;
+      }
+      title.appendChild(w);
+    }
+  })();
+
+  // ---------- Keyboard ----------
+  const keyEls = {};
+  const kb = $('kb');
+  for (const row of ROWS) {
+    const r = document.createElement('div');
+    r.className = 'row';
+    for (const k of row) {
+      const b = document.createElement('button');
+      b.className = 'key';
+      b.type = 'button';
+      b.tabIndex = -1;
+      b.dataset.k = k;
+      b.innerHTML = `<span class="cap">${k}</span>`;
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); press(k); });
+      b.addEventListener('animationend', (e) => {
+        if (e.animationName === 'press') b.classList.remove('pressed');
+        if (e.animationName === 'hop') b.classList.remove('hint');
+      });
+      keyEls[k] = b;
+      r.appendChild(b);
+    }
+    kb.appendChild(r);
+  }
+  function flashKey(k) {
+    const el = keyEls[k];
+    el.classList.remove('pressed');
+    void el.offsetWidth;
+    el.classList.add('pressed');
+  }
+  function setTarget(letter, color) {
+    clearTarget();
+    const el = keyEls[letter];
+    el.style.setProperty('--c', color.c);
+    el.style.setProperty('--d', color.d);
+    el.classList.add('target');
+  }
+  function clearTarget() {
+    for (const el of Object.values(keyEls)) el.classList.remove('target', 'hint');
+  }
+  function hintKey() {
+    if (!current) return;
+    const el = keyEls[current.letter];
+    el.classList.remove('hint');
+    void el.offsetWidth;
+    el.classList.add('hint');
+  }
+
+  // ---------- Sound ----------
+  let muted = false;
+  try { muted = localStorage.getItem('balloonpop.muted') === '1'; } catch {}
+  soundBtn.setAttribute('aria-pressed', String(muted));
+  let ac = null, master = null;
+  function initAudio() {
+    if (ac) return;
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = 0.6;
+      master.connect(ac.destination);
+    } catch { ac = null; }
+  }
+  function tone(freq, start, dur, { type = 'sine', vol = 0.2, to = null } = {}) {
+    if (!ac || muted) return;
+    const t = ac.currentTime + start;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(master);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+  function popSound() {
+    if (!ac || muted) return;
+    const t = ac.currentTime;
+    const len = Math.floor(ac.sampleRate * 0.18);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 4);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1400;
+    bp.Q.value = 0.8;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    src.connect(bp).connect(g).connect(master);
+    src.start(t);
+    tone(900, 0, 0.13, { type: 'triangle', vol: 0.25, to: 240 });
+  }
+  const whee = () => tone(330, 0, 0.5, { vol: 0.06, to: 660 });
+  const boop = () => tone(300, 0, 0.22, { vol: 0.18, to: 190 });
+  const ding = () => { tone(1318, 0, 0.25, { type: 'triangle', vol: 0.08 }); tone(1760, 0.07, 0.3, { type: 'triangle', vol: 0.06 }); };
+  function fanfare() {
+    [523, 659, 784].forEach((f, i) => tone(f, i * 0.13, 0.2, { type: 'triangle', vol: 0.18 }));
+    tone(1047, 0.39, 0.8, { type: 'triangle', vol: 0.2 });
+    tone(784, 0.39, 0.8, { type: 'triangle', vol: 0.1 });
+  }
+
+  // ---------- Voice ----------
+  const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
+  let voice = null;
+  function pickVoice() {
+    if (!synth) return;
+    const vs = synth.getVoices();
+    voice = vs.find((v) => /Samantha|Google US English/.test(v.name))
+      || vs.find((v) => v.lang === 'en-US')
+      || vs.find((v) => v.lang && v.lang.startsWith('en'))
+      || null;
+  }
+  if (synth) { pickVoice(); synth.addEventListener?.('voiceschanged', pickVoice); }
+  function speak(text) {
+    return new Promise((resolve) => {
+      if (!synth || muted) return resolve();
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      try {
+        if (synth.speaking || synth.pending) synth.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        if (voice) u.voice = voice;
+        u.lang = 'en-US';
+        u.rate = 0.9;
+        u.pitch = 1.15;
+        u.onend = finish;
+        u.onerror = finish;
+        synth.speak(u);
+      } catch { finish(); }
+      setTimeout(finish, 4000);
+    });
+  }
+
+  soundBtn.addEventListener('click', () => {
+    muted = !muted;
+    soundBtn.setAttribute('aria-pressed', String(muted));
+    try { localStorage.setItem('balloonpop.muted', muted ? '1' : '0'); } catch {}
+    if (muted && synth) synth.cancel();
+  });
+
+  // ---------- Full screen ----------
+  const canFullscreen = !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+  if (!canFullscreen) fsBtn.hidden = true;
+  function enterFullscreen() {
+    if (canFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+  }
+  fsBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else enterFullscreen();
+  });
+
+  // ---------- Balloon ----------
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function nextLetter() {
+    if (!bag.length) {
+      bag = shuffle([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']);
+      if (bag[bag.length - 1] === lastLetter) bag.reverse();
+    }
+    lastLetter = bag.pop();
+    return lastLetter;
+  }
+  function balloonSVG(letter) {
+    return `<div class="wiggle"><svg viewBox="0 0 200 300" aria-hidden="true">
+      <path class="b-string" d="M100 238 C 90 256, 112 272, 100 298"/>
+      <path class="b-knot" d="M90 241 L110 241 L100 226 Z"/>
+      <path class="b-body" d="M100 6 C 160 6 194 54 194 108 C 194 172 142 224 100 230 C 58 224 6 172 6 108 C 6 54 40 6 100 6 Z"/>
+      <path class="b-shade" d="M100 6 C 160 6 194 54 194 108 C 194 172 142 224 100 230 C 134 208 168 164 168 108 C 168 58 140 20 100 6 Z"/>
+      <ellipse class="b-shine" cx="58" cy="70" rx="15" ry="30" transform="rotate(28 58 70)"/>
+      <text class="b-letter" x="100" y="120" text-anchor="middle" dominant-baseline="central">${letter}</text>
+    </svg></div>`;
+  }
+  function spawnBalloon() {
+    const letter = nextLetter();
+    const color = COLORS[colorIdx++ % COLORS.length];
+    const w = Math.max(110, Math.min(260, skyW * 0.42, (skyH * 0.6) / 1.5));
+    const el = document.createElement('div');
+    el.className = 'balloon';
+    el.style.width = `${w}px`;
+    el.style.setProperty('--c', color.c);
+    el.style.setProperty('--d', color.d);
+    el.innerHTML = balloonSVG(letter);
+    balloonLayer.appendChild(el);
+    current = {
+      letter, color, el, w, h: w * 1.5,
+      offset: Math.random() * 2 - 1,
+      phase: Math.random() * 6,
+      t0: performance.now(),
+      misses: 0,
+    };
+    setTarget(letter, color);
+    state = 'waiting';
+    whee();
+    clearTimeout(nameTimer);
+    const mine = current;
+    nameTimer = setTimeout(() => { if (current === mine) speak(nameOf(letter)); }, 900);
+  }
+  function placeBalloon(now) {
+    const c = current;
+    if (!c) return;
+    const t = (now - c.t0) / 1000;
+    const p = Math.min(1, (now - c.t0) / RISE_MS);
+    const ease = 1 - Math.pow(1 - p, 3);
+    const startY = skyH + 10;
+    const restY = Math.max(8, (skyH - c.h) * 0.42);
+    const m = reduceMotion ? 0 : 1;
+    const y = startY + (restY - startY) * ease + Math.sin(t * 1.7 + c.phase) * 7 * ease * m;
+    const x = (skyW - c.w) / 2 + c.offset * Math.max(0, (skyW - c.w) / 2) * 0.5 + Math.sin(t * 0.8 + c.phase) * 12 * m;
+    const r = Math.sin(t * 1.1 + c.phase) * 3 * m;
+    c.el.style.transform = `translate(${x}px, ${y}px) rotate(${r}deg)`;
+  }
+
+  // ---------- Input ----------
+  function press(k) {
+    flashKey(k);
+    if (state !== 'waiting' || !current) return;
+    if (k === current.letter) popCurrent();
+    else miss();
+  }
+  function miss() {
+    boop();
+    const inner = current.el.querySelector('.wiggle');
+    inner.classList.remove('shake');
+    void inner.offsetWidth;
+    inner.classList.add('shake');
+    current.misses++;
+    if (current.misses >= 3) {
+      current.misses = 0;
+      hintKey();
+      speak(`Look for ${nameOf(current.letter)}!`);
+    }
+  }
+  balloonLayer.addEventListener('pointerdown', (e) => {
+    if (state !== 'waiting' || !current || !e.target.closest('.balloon')) return;
+    hintKey();
+    speak(`Find ${nameOf(current.letter)} on the keyboard!`);
+  });
+
+  addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === ' ' || e.key === 'Tab') e.preventDefault();
+    const k = e.key.length === 1 ? e.key.toUpperCase() : '';
+    if (state === 'start') {
+      if (e.key === 'Enter' || e.key === ' ' || /^[A-Z]$/.test(k)) { e.preventDefault(); begin(); }
+      return;
+    }
+    if (e.repeat || !/^[A-Z]$/.test(k)) return;
+    e.preventDefault();
+    press(k);
+  });
+
+  // ---------- Pop ----------
+  async function popCurrent() {
+    state = 'busy';
+    clearTimeout(nameTimer);
+    const c = current;
+    current = null;
+    const skyRect = sky.getBoundingClientRect();
+    const br = c.el.getBoundingClientRect();
+    const x = clamp(br.left + br.width / 2 - skyRect.left, skyW * 0.2, skyW * 0.8);
+    const y = clamp(br.top + br.height * 0.39 - skyRect.top, skyH * 0.32, skyH * 0.6);
+    c.el.remove();
+    clearTarget();
+    popSound();
+    burst(skyRect.left + x, skyRect.top + y, c.color);
+    showReveal(c.letter, c.color, x, y);
+    stars++;
+    flyStar(skyRect.left + x, skyRect.top + y, stars);
+
+    const info = LETTERS[c.letter];
+    const line = info.say || `${nameOf(c.letter)}! ${nameOf(c.letter)} is for ${info.word}.`;
+    await Promise.all([wait(250).then(() => speak(line)), wait(1800)]);
+    await wait(300);
+    if (stars % 10 === 0) {
+      hideReveal();
+      await party();
+    } else {
+      hideReveal();
+      await wait(350);
+    }
+    spawnBalloon();
+  }
+  function showReveal(letter, color, x, y) {
+    const info = LETTERS[letter];
+    const word = info.word[0].toUpperCase() + info.word.slice(1);
+    const i = word.toLowerCase().indexOf(letter.toLowerCase());
+    reveal.querySelector('.emoji').textContent = info.emoji;
+    const wordEl = reveal.querySelector('.word');
+    wordEl.textContent = '';
+    const hl = document.createElement('b');
+    hl.style.color = color.d;
+    hl.textContent = word[i];
+    wordEl.append(word.slice(0, i), hl, word.slice(i + 1));
+    reveal.style.left = `${x}px`;
+    reveal.style.top = `${y}px`;
+    reveal.classList.remove('out', 'in');
+    reveal.hidden = false;
+    void reveal.offsetWidth;
+    reveal.classList.add('in');
+  }
+  function hideReveal() {
+    if (reveal.hidden) return;
+    reveal.classList.remove('in');
+    reveal.classList.add('out');
+    setTimeout(() => { if (reveal.classList.contains('out')) reveal.hidden = true; }, 360);
+  }
+  function flyStar(x, y, n) {
+    const s = document.createElement('div');
+    s.className = 'fly-star';
+    s.textContent = '★';
+    document.body.appendChild(s);
+    const t = starIcon.getBoundingClientRect();
+    const tx = t.left + t.width / 2, ty = t.top + t.height / 2;
+    const land = () => {
+      s.remove();
+      starCount.textContent = n;
+      starsPill.classList.remove('bump');
+      void starsPill.offsetWidth;
+      starsPill.classList.add('bump');
+      ding();
+    };
+    if (!s.animate) { land(); return; }
+    const anim = s.animate([
+      { transform: `translate(${x}px, ${y}px) translate(-50%, -50%) scale(.5)` },
+      { transform: `translate(${(x + tx) / 2}px, ${Math.min(y, ty) - 60}px) translate(-50%, -50%) scale(1.5)`, offset: 0.45 },
+      { transform: `translate(${tx}px, ${ty}px) translate(-50%, -50%) scale(.7)` },
+    ], { duration: 950, delay: 350, easing: 'cubic-bezier(.5, 0, .3, 1)', fill: 'both' });
+    anim.onfinish = land;
+  }
+  async function party() {
+    $('partyNum').textContent = stars;
+    partyEl.hidden = false;
+    const card = partyEl.querySelector('.party-card');
+    card.style.animation = 'none';
+    void card.offsetWidth;
+    card.style.animation = '';
+    fanfare();
+    rain();
+    await Promise.all([wait(500).then(() => speak(`Hooray! ${stars} stars!`)), wait(3000)]);
+    partyEl.hidden = true;
+    await wait(200);
+  }
+
+  // ---------- Confetti ----------
+  const canvas = $('confetti');
+  const ctx = canvas.getContext('2d');
+  let vw = innerWidth, vh = innerHeight;
+  const parts = [];
+  function sizeCanvas() {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    vw = innerWidth;
+    vh = innerHeight;
+    canvas.width = Math.round(vw * dpr);
+    canvas.height = Math.round(vh * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  sizeCanvas();
+  addEventListener('resize', sizeCanvas);
+  new ResizeObserver(() => { skyW = sky.clientWidth; skyH = sky.clientHeight; }).observe(sky);
+
+  function burst(x, y, color) {
+    const palette = [color.c, color.d, '#ffd23f', '#ffffff', '#3a86ff', '#ff70a6'];
+    const n = reduceMotion ? 24 : 80;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 3 + Math.random() * 8;
+      parts.push({
+        x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3, g: 0.2,
+        rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3,
+        s: 6 + Math.random() * 8, c: palette[i % palette.length],
+        life: 1, decay: 0.008 + Math.random() * 0.008, rect: Math.random() < 0.55,
+      });
+    }
+  }
+  function rain() {
+    const n = reduceMotion ? 50 : 200;
+    for (let i = 0; i < n; i++) {
+      const col = COLORS[i % COLORS.length];
+      parts.push({
+        x: Math.random() * vw, y: -20 - Math.random() * vh * 0.6,
+        vx: (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, g: 0.04,
+        rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.2,
+        s: 8 + Math.random() * 8, c: i % 3 ? col.c : '#ffd23f',
+        life: 1, decay: 0.003 + Math.random() * 0.003, rect: Math.random() < 0.6,
+      });
+    }
+  }
+  let lastFrame = performance.now();
+  let canvasDirty = false;
+  function frame(now) {
+    const dt = Math.min(2.5, (now - lastFrame) / 16.67);
+    lastFrame = now;
+    placeBalloon(now);
+    if (parts.length || canvasDirty) {
+      ctx.clearRect(0, 0, vw, vh);
+      canvasDirty = parts.length > 0;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i];
+        p.vx *= Math.pow(0.99, dt);
+        p.vy += p.g * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.rot += p.vr * dt;
+        p.life -= p.decay * dt;
+        if (p.life <= 0 || p.y > vh + 40) { parts.splice(i, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, p.life * 2);
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.c;
+        if (p.rect) ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+        else { ctx.beginPath(); ctx.arc(0, 0, p.s / 2.4, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------- Start ----------
+  function begin() {
+    if (state !== 'start') return;
+    state = 'busy';
+    initAudio();
+    if (ac && ac.state === 'suspended') ac.resume();
+    enterFullscreen();
+    startEl.classList.add('leaving');
+    setTimeout(() => { startEl.hidden = true; }, 400);
+    speak("Let's pop some balloons!");
+    setTimeout(spawnBalloon, 900);
+  }
+  $('playBtn').addEventListener('click', begin);
+})();
+</script>
+</body>
+</html>
